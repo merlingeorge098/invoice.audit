@@ -51,7 +51,7 @@ export default function UploadPage() {
             onClick={() => setTemplateMode("custom")}
             className={`flex flex-col items-center gap-3 rounded-2xl border-2 p-8 transition-all duration-200 ${
               templateMode === "custom"
-                ? "border-primary bg-secondary shadow-elevated"
+                ? "border-primary bg-muted shadow-elevated"
                 : "border-border bg-card hover:border-primary/40 hover:shadow-card"
             }`}
           >
