@@ -28,7 +28,7 @@ export default function Index() {
           <div className="mx-auto max-w-3xl text-center">
             <h1 className="animate-fade-in-up text-4xl font-extrabold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
               Smarter Invoice Verification for{" "}
-              <span className="bg-gradient-to-r from-primary to-[hsl(280,100%,70%)] bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
                 Businesses
               </span>
             </h1>
