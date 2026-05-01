@@ -1,102 +1,186 @@
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  ArrowRight,
+  CheckCheck,
+  LockKeyhole,
+  ShieldCheck,
+  ShieldEllipsis,
+  Sparkles,
+  Workflow,
+} from "lucide-react";
+import { toast } from "sonner";
+import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { AppHeader } from "@/components/AppLayout";
-import { Upload, ShieldCheck, AlertTriangle, FileDown, Lock, Target, CheckCircle } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { demoPaths, workspaceEntryPath } from "@/lib/workspace";
 
-const features = [
-  { icon: Upload, title: "Easy Upload", description: "Drag & drop your invoices or Excel files for instant processing." },
-  { icon: ShieldCheck, title: "Data Verification", description: "Cross-check invoice details against your records automatically." },
-  { icon: AlertTriangle, title: "Error Detection", description: "Identify discrepancies, missing fields, and GSTIN mismatches." },
-  { icon: FileDown, title: "Download Reports", description: "Export comprehensive verification reports in Excel format." },
+const controlPillars = [
+  {
+    title: "Validate before payment",
+    description:
+      "Cross-check invoices against vendor master, POs, GRNs, contracts, and configurable policy rules.",
+  },
+  {
+    title: "Score anomalies clearly",
+    description:
+      "Surface duplicate, fraud, tax, and approval-risk signals with explainable reasoning and confidence.",
+  },
+  {
+    title: "Preserve audit evidence",
+    description:
+      "Keep a tamper-evident record of system decisions, reviewer actions, and supporting documents.",
+  },
 ];
 
-const trustItems = [
-  { icon: Lock, title: "Secure Processing", description: "Your data is encrypted and processed securely." },
-  { icon: Target, title: "Accurate Results", description: "99.9% accuracy in invoice verification." },
-  { icon: CheckCircle, title: "Trusted by 500+ Businesses", description: "Relied upon by companies across industries." },
+const trustSignals = [
+  { label: "MFA for admins", icon: LockKeyhole },
+  { label: "Role-based access", icon: ShieldCheck },
+  { label: "Tamper-evident audit trail", icon: ShieldEllipsis },
 ];
 
 export default function Index() {
-  return (
-    <div className="min-h-screen bg-background">
-      <AppHeader />
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("finance.manager@northwind.com");
+  const [password, setPassword] = useState("demo-password");
 
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 gradient-subtle opacity-60" />
-        <div className="container relative py-24 md:py-32">
-          <div className="mx-auto max-w-3xl text-center">
-            <h1 className="animate-fade-in-up text-4xl font-extrabold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-              Smarter Invoice Verification for{" "}
-              <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                Businesses
-              </span>
+  const handleExploreDemo = () => {
+    if (!email || !password) {
+      toast.error("Enter an email and password to open the demo workspace.");
+      return;
+    }
+
+    toast.success("Opening the shared enterprise demo workspace.");
+    navigate(demoPaths.dashboard);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-white">
+      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,_rgba(20,184,166,0.28),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(14,116,144,0.24),_transparent_28%),linear-gradient(160deg,_rgba(2,6,23,1),_rgba(15,23,42,1))]" />
+      <div className="mx-auto grid min-h-screen max-w-7xl gap-12 px-6 py-10 lg:grid-cols-[1.2fr_0.8fr] lg:px-10">
+        <div className="flex flex-col justify-between">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200">
+              <Sparkles className="h-4 w-4 text-teal-300" />
+              Invoice.Audit for finance controls and audit readiness
+            </div>
+            <h1 className="mt-8 max-w-3xl font-heading text-5xl font-semibold tracking-tight text-white md:text-6xl">
+              Intelligent invoice assurance before payment is ever released.
             </h1>
-            <p className="mt-6 text-lg text-muted-foreground animate-fade-in-up" style={{ animationDelay: "0.15s" }}>
-              Check, verify, and manage your invoices with ease. Detect errors before they cost you money.
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
+              A control-first platform for invoice ingestion, extraction, validation, risk scoring,
+              workflow routing, and audit evidence. Built for AP teams, finance managers, and
+              internal auditors who need clarity at speed.
             </p>
-            <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center animate-fade-in-up" style={{ animationDelay: "0.3s" }}>
-              <Button asChild variant="hero" size="lg">
-                <Link to="/upload">Get Started</Link>
-              </Button>
-              <Button asChild variant="hero-outline" size="lg">
-                <Link to="/dashboard">View Demo</Link>
-              </Button>
+
+            <div className="mt-10 grid gap-4 md:grid-cols-3">
+              {controlPillars.map((pillar) => (
+                <Card
+                  key={pillar.title}
+                  className="rounded-3xl border-white/10 bg-white/5 text-white shadow-[0_28px_80px_-50px_rgba(15,118,110,0.7)]"
+                >
+                  <CardContent className="p-6">
+                    <p className="font-heading text-lg font-semibold">{pillar.title}</p>
+                    <p className="mt-3 text-sm leading-6 text-slate-300">{pillar.description}</p>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* Features */}
-      <section className="container py-20">
-        <h2 className="text-center text-3xl font-bold text-foreground">How It Works</h2>
-        <p className="mt-3 text-center text-muted-foreground">Four simple steps to verified invoices</p>
-        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {features.map((f, i) => (
-            <div
-              key={f.title}
-              className="group rounded-2xl border border-border bg-card p-6 shadow-card transition-all duration-300 hover:shadow-elevated hover:-translate-y-1"
-              style={{ animationDelay: `${i * 0.1}s` }}
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
-                <f.icon className="h-6 w-6" />
-              </div>
-              <h3 className="mt-4 text-lg font-semibold text-card-foreground">{f.title}</h3>
-              <p className="mt-2 text-sm text-muted-foreground">{f.description}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Trust */}
-      <section className="gradient-subtle">
-        <div className="container py-20">
-          <h2 className="text-center text-3xl font-bold text-foreground">Why Trust Us</h2>
-          <div className="mt-12 grid gap-8 sm:grid-cols-3">
-            {trustItems.map((t) => (
-              <div key={t.title} className="flex flex-col items-center text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl gradient-primary shadow-primary">
-                  <t.icon className="h-7 w-7 text-primary-foreground" />
-                </div>
-                <h3 className="mt-4 text-lg font-semibold text-foreground">{t.title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{t.description}</p>
+          <div className="mt-12 flex flex-wrap gap-3">
+            {trustSignals.map((signal) => (
+              <div
+                key={signal.label}
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200"
+              >
+                <signal.icon className="h-4 w-4 text-teal-300" />
+                {signal.label}
               </div>
             ))}
           </div>
         </div>
-      </section>
 
-      {/* Footer */}
-      <footer className="border-t border-border bg-background">
-        <div className="container flex flex-col items-center gap-4 py-10 md:flex-row md:justify-between">
-          <p className="text-sm text-muted-foreground">© 2026 Invoice Auditor. All rights reserved.</p>
-          <div className="flex gap-6 text-sm text-muted-foreground">
-            <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
-            <a href="#" className="hover:text-foreground transition-colors">Terms</a>
-            <a href="#" className="hover:text-foreground transition-colors">Contact</a>
-          </div>
+        <div className="flex items-center">
+          <Card className="w-full rounded-[28px] border-white/10 bg-white text-slate-950 shadow-[0_48px_120px_-56px_rgba(15,23,42,0.85)]">
+            <CardContent className="p-7 md:p-8">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <StatusBadge tone="info">Secure Login</StatusBadge>
+                  <h2 className="mt-4 font-heading text-3xl font-semibold tracking-tight text-slate-950">
+                    Access the control workspace
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    Sign in with your finance identity provider or use the demo credentials below.
+                  </p>
+                </div>
+                <div className="hidden shrink-0 rounded-3xl bg-slate-950 px-4 py-3 text-sm text-white sm:block">
+                  <Workflow className="mb-2 h-5 w-5 text-teal-300" />
+                  SSO + MFA
+                </div>
+              </div>
+
+              <div className="mt-8 space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">Demo email</label>
+                  <Input value={email} onChange={(event) => setEmail(event.target.value)} />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">Demo password</label>
+                  <Input
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-8 space-y-3">
+                <Button variant="hero" size="lg" className="w-full" onClick={handleExploreDemo}>
+                  Explore Demo
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+                <Button variant="hero" size="lg" className="w-full" onClick={() => navigate(workspaceEntryPath)}>
+                  Enter Your Workspace
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="mt-8 rounded-3xl bg-slate-50 p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-heading text-lg font-semibold text-slate-950">
+                      Workspace preview
+                    </p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Review queue, exception handling, and audit trail visibility.
+                    </p>
+                  </div>
+                  <Link to={demoPaths.dashboard} className="text-sm font-medium text-primary">
+                    Open demo
+                  </Link>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl bg-white p-4 shadow-card">
+                    <p className="text-sm font-medium text-slate-500">Today</p>
+                    <p className="mt-2 font-heading text-3xl font-semibold text-slate-950">42</p>
+                    <p className="mt-2 flex items-center gap-2 text-sm text-slate-600">
+                      <CheckCheck className="h-4 w-4 text-emerald-600" />
+                      pending review decisions
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-white p-4 shadow-card">
+                    <p className="text-sm font-medium text-slate-500">Controls</p>
+                    <p className="mt-2 font-heading text-3xl font-semibold text-slate-950">9</p>
+                    <p className="mt-2 text-sm text-slate-600">high-risk invoices currently blocked</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
-      </footer>
+      </div>
     </div>
   );
 }
