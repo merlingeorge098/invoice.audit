@@ -1,0 +1,539 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Tenant & Identity ────────────────────────────────────────────────────────
+
+model Tenant {
+  id               String   @id @default(uuid())
+  organizationName String
+  workspaceId      String   @unique
+  workspaceName    String
+  tenantSlug       String   @unique
+  authMethod       String   // "otp" | "google" | "saml"
+  ssoProvider      String?
+  logoUrl          String?
+  fiscalYearStart  Int      @default(4)  // month number, 4 = April (India default)
+  currency         String   @default("INR")
+  allowedDomains   String[] @default([])  // domains that auto-join
+  inviteOnly       Boolean  @default(false)
+  isSuperAdmin     Boolean  @default(false)
+  erpApiKey        String?
+  erpWebhookUrl    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  domains          TenantDomain[]
+  users            WorkspaceMembership[]
+  sessions         Session[]
+  invoices         Invoice[]
+  notifications    NotificationSetting[]
+  rules            RuleSetting[]
+  stripeCustomer   StripeCustomer?
+  usageEvents      UsageEvent[]
+  vendors          VendorMaster[]
+  purchaseOrders   PurchaseOrder[]
+  goodsReceipts    GoodsReceipt[]
+  inviteTokens     InviteToken[]
+  apiKeys          TenantApiKey[]
+  auditSnapshots   AuditSnapshot[]
+  gstRuns          GstReconciliationRun[]
+  evidencePackages EvidencePackage[]
+  notificationEvents NotificationEvent[]
+  syncLogs         IntegrationSync[]
+}
+
+model TenantDomain {
+  id        String   @id @default(uuid())
+  domain    String   @unique
+  tenantId  String
+  createdAt DateTime @default(now())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  displayName   String
+  avatarUrl     String?
+  googleId      String?  @unique
+  isSuperAdmin  Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sessions             Session[]
+  memberships          WorkspaceMembership[]
+  notificationEvents   NotificationEvent[]
+}
+
+model WorkspaceMembership {
+  id         String    @id @default(uuid())
+  userId     String
+  tenantId   String
+  role       String    // "AP Reviewer" | "Finance Manager" | "Controller" | "Auditor" | "Admin"
+  isActive   Boolean   @default(true)
+  invitedBy  String?
+  joinedAt   DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId])
+  @@index([tenantId, isActive])
+}
+
+model Session {
+  id             String   @id @default(uuid())
+  sessionToken   String   @unique
+  userId         String
+  tenantId       String
+  ipAddress      String?
+  userAgent      String?
+  isImpersonation Boolean @default(false)
+  impersonatedBy  String?
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sessionToken, expiresAt])
+}
+
+model VerificationToken {
+  id        String   @id @default(uuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+model InviteToken {
+  id        String    @id @default(uuid())
+  tenantId  String
+  email     String
+  role      String
+  token     String    @unique
+  invitedBy String
+  expiresAt DateTime
+  acceptedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, email])
+}
+
+model TenantApiKey {
+  id          String    @id @default(uuid())
+  tenantId    String
+  label       String
+  keyHash     String    @unique  // bcrypt hash — never store plaintext
+  keyPrefix   String             // first 8 chars shown in UI
+  createdBy   String
+  expiresAt   DateTime?
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  syncs   IntegrationSync[]
+
+  @@index([tenantId])
+}
+
+// ─── Billing ─────────────────────────────────────────────────────────────────
+
+model StripeCustomer {
+  id                   String   @id @default(uuid())
+  tenantId             String   @unique
+  stripeCustomerId     String   @unique
+  stripeSubscriptionId String?  @unique
+  stripePriceId        String?
+  planSlug             String   @default("free")  // "free" | "pro" | "enterprise"
+  status               String   @default("trialing") // "trialing" | "active" | "past_due" | "canceled" | "locked"
+  trialEndsAt          DateTime?
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model PlanLimit {
+  id                    String   @id @default(uuid())
+  planSlug              String   @unique  // "free" | "pro" | "enterprise"
+  displayName           String
+  maxInvoicesPerMonth   Int      // -1 = unlimited
+  maxSeats              Int      // -1 = unlimited
+  hasGoogleSso          Boolean  @default(false)
+  hasGstReconciliation  Boolean  @default(false)
+  hasAuditExport        Boolean  @default(false)
+  hasApiAccess          Boolean  @default(false)
+  hasErpConnectors      Boolean  @default(false)
+  hasPrioritySupport    Boolean  @default(false)
+  createdAt             DateTime @default(now())
+}
+
+model UsageEvent {
+  id          String   @id @default(uuid())
+  tenantId    String
+  eventType   String   // "invoice_processed" | "seat_added"
+  quantity    Int      @default(1)
+  periodMonth Int      // YYYYMM e.g. 202506
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, periodMonth, eventType])
+}
+
+// ─── Invoice Core ─────────────────────────────────────────────────────────────
+
+model Invoice {
+  id                     String   @id @default(uuid())
+  tenantId               String
+  fileHash               String?
+  storagePath            String?  // Supabase Storage path
+  processingStep         String   @default("complete")
+  invoiceNumber          String
+  vendorName             String
+  vendorCode             String
+  entity                 String
+  amount                 Float
+  currency               String   @default("INR")
+  invoiceDate            String
+  dueDate                String
+  poNumber               String
+  grnNumber              String
+  gstin                  String?
+  status                 String
+  riskLevel              String
+  riskScore              Int
+  confidence             Int
+  duplicateLikelihood    Int
+  sourceChannel          String
+  assignedReviewer       String
+  agingHours             Int
+  slaDeadline            DateTime?
+  slaNotifiedAt          DateTime?
+  summary                String   @db.Text
+  workflowRecommendation String   @db.Text
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  anomalyTypes     InvoiceAnomaly[]
+  validationChecks ValidationCheck[]
+  flags            InvoiceFlag[]
+  structuredFields StructuredField[]
+  lineItems        LineItem[]
+  fieldComparisons FieldComparison[]
+  auditTrail       AuditEvent[]
+  evidenceAttachments EvidenceAttachment[]
+  evidencePackages EvidencePackage[]
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, vendorName])
+  @@index([tenantId, fileHash])
+}
+
+model InvoiceAnomaly {
+  id        String  @id @default(uuid())
+  invoiceId String
+  type      String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model ValidationCheck {
+  id        String  @id @default(uuid())
+  invoiceId String
+  label     String
+  status    String
+  detail    String  @db.Text
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model InvoiceFlag {
+  id        String  @id @default(uuid())
+  invoiceId String
+  title     String
+  severity  String
+  detail    String  @db.Text
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model StructuredField {
+  id         String  @id @default(uuid())
+  invoiceId  String
+  label      String
+  value      String
+  confidence Int
+  source     String
+  invoice    Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model LineItem {
+  id          String  @id @default(uuid())
+  invoiceId   String
+  description String
+  quantity    Float
+  unitPrice   Float
+  total       Float
+  hsn         String?
+  taxRate     Float?
+  status      String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model FieldComparison {
+  id             String  @id @default(uuid())
+  invoiceId      String
+  field          String
+  submitted      String
+  extracted      String
+  suggestion     String
+  correctedValue String?
+  reason         String  @db.Text
+  confidence     Float   @default(0)
+  status         String  @default("pending")  // "pending" | "accepted" | "rejected"
+  invoice        Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model AuditEvent {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  invoiceId String?
+  actor     String
+  actorId   String?
+  action    String
+  detail    String   @db.Text
+  metadata  Json?
+  signature String?
+  timestamp String
+  createdAt DateTime @default(now())
+
+  invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([invoiceId])
+}
+
+// ─── Evidence ─────────────────────────────────────────────────────────────────
+
+model EvidenceAttachment {
+  id           String   @id @default(uuid())
+  invoiceId    String
+  fileName     String
+  storagePath  String
+  mimeType     String
+  sizeBytes    Int
+  uploadedBy   String
+  uploadedAt   DateTime @default(now())
+  fromVendorPortal Boolean @default(false)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model EvidencePackage {
+  id           String   @id @default(uuid())
+  invoiceId    String
+  tenantId     String
+  storagePath  String
+  sha256Hash   String
+  generatedBy  String
+  status       String   @default("generating")  // "generating" | "ready" | "failed"
+  generatedAt  DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+// ─── Vendor Master & PO/GRN ───────────────────────────────────────────────────
+
+model VendorMaster {
+  id           String    @id @default(uuid())
+  tenantId     String
+  vendorName   String
+  vendorCode   String?
+  gstin        String?
+  panNumber    String?
+  bankAccount  String?
+  ifscCode     String?
+  vendorEmail  String?
+  vendorPhone  String?
+  isApproved   Boolean   @default(true)
+  isActive     Boolean   @default(true)
+  addedBy      String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([tenantId, vendorCode])
+  @@index([tenantId, vendorName])
+}
+
+model PurchaseOrder {
+  id            String    @id @default(uuid())
+  tenantId      String
+  vendorId      String?
+  poNumber      String
+  vendorName    String
+  totalAmount   Float
+  currency      String    @default("INR")
+  issuedAt      DateTime
+  expiresAt     DateTime?
+  status        String    @default("open")  // "open" | "closed" | "cancelled"
+  createdAt     DateTime  @default(now())
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vendor        VendorMaster?  @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  goodsReceipts GoodsReceipt[]
+
+  @@unique([tenantId, poNumber])
+  @@index([tenantId])
+}
+
+model GoodsReceipt {
+  id             String   @id @default(uuid())
+  tenantId       String
+  poId           String?
+  grnNumber      String
+  receivedAt     DateTime
+  receivedAmount Float
+  createdAt      DateTime @default(now())
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  po     PurchaseOrder? @relation(fields: [poId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, grnNumber])
+}
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+
+model RuleSetting {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  description String   @db.Text
+  enabled     Boolean  @default(true)
+  owner       String
+  config      Json?    // arbitrary rule-specific parameters
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+}
+
+model NotificationSetting {
+  id              String   @id @default(uuid())
+  tenantId        String
+  name            String
+  enabled         Boolean  @default(true)
+  emailEnabled    Boolean  @default(true)
+  slackWebhookUrl String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+}
+
+// ─── Notifications Inbox ──────────────────────────────────────────────────────
+
+model NotificationEvent {
+  id        String    @id @default(uuid())
+  userId    String
+  tenantId  String
+  type      String    // "assigned" | "sla_breach" | "escalated" | "approved" | "rejected"
+  title     String
+  body      String    @db.Text
+  invoiceId String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([tenantId, createdAt])
+}
+
+// ─── Analytics Snapshots ──────────────────────────────────────────────────────
+
+model AuditSnapshot {
+  id                  String   @id @default(uuid())
+  tenantId            String
+  snapshotDate        DateTime
+  totalInvoices       Int
+  pendingCount        Int
+  autoApprovedCount   Int
+  blockedCount        Int
+  needsEvidenceCount  Int
+  highRiskCount       Int
+  totalAmount         Float
+  avgRiskScore        Float
+  createdAt           DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, snapshotDate])
+  @@index([tenantId, snapshotDate])
+}
+
+// ─── GST Reconciliation ───────────────────────────────────────────────────────
+
+model GstReconciliationRun {
+  id           String   @id @default(uuid())
+  tenantId     String
+  periodFrom   DateTime
+  periodTo     DateTime
+  totalInward  Float    @default(0)
+  totalOutward Float    @default(0)
+  cgst         Float    @default(0)
+  sgst         Float    @default(0)
+  igst         Float    @default(0)
+  mismatches   Int      @default(0)
+  status       String   @default("running")  // "running" | "complete" | "failed"
+  reportPath   String?  // Supabase Storage path for Excel export
+  runBy        String
+  runAt        DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, runAt])
+}
+
+// ─── ERP Integration ──────────────────────────────────────────────────────────
+
+model IntegrationSync {
+  id               String    @id @default(uuid())
+  tenantId         String
+  apiKeyId         String?
+  connectorType    String    // "csv" | "webhook" | "sap" | "netsuite"
+  startedAt        DateTime  @default(now())
+  completedAt      DateTime?
+  invoicesImported Int       @default(0)
+  errors           Json?
+  status           String    @default("running")  // "running" | "complete" | "failed"
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  apiKey TenantApiKey? @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, startedAt])
+}
